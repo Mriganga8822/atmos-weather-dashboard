@@ -1,40 +1,54 @@
-
 /*
- * ATMOS WEATHER DASHBOARD — FIXED CITY SEARCH
- * Cloudflare Worker remains unchanged.
+ * ATMOS WEATHER DASHBOARD
+ * Fixed city search, selected-location display, and request handling.
+ * Cloudflare Worker URL unchanged.
  */
-const PROXY_BASE = "https://atmos-weather-proxy.gamingmriganga.workers.dev";
+
+"use strict";
+
+const PROXY_BASE =
+  "https://atmos-weather-proxy.gamingmriganga.workers.dev";
 
 const state = {
   unit: "C",
   weather: null,
   forecast: null,
-  cityTimezoneOffset: null,
+  cityTimezoneOffset: 0,
   cityName: "",
   cityCountry: "",
-  refreshTimer: null,
+  selectedLocation: null,
   requestId: 0,
-  selectedLocation: null
+  refreshTimer: null
 };
 
 const $ = id => document.getElementById(id);
-const statusEl = $("status-message");
+
+function setText(id, value) {
+  const element = $(id);
+  if (element) element.textContent = value ?? "";
+}
 
 function setStatus(message, kind = "") {
-  if (!statusEl) return;
-  statusEl.textContent = message;
-  statusEl.className = `status-message ${kind}`.trim();
+  const element = $("status-message");
+  if (!element) return;
+
+  element.textContent = message;
+  element.className = `status-message ${kind}`.trim();
 }
 
 async function proxyRequest(path, params = {}) {
-  const url = new URL(
-    path.replace(/^\//, ""),
-    PROXY_BASE.endsWith("/") ? PROXY_BASE : `${PROXY_BASE}/`
-  );
+  // Correctly remove any leading slash from the endpoint.
+  const endpoint = path.replace(/^\/+/, "");
+
+  const base = PROXY_BASE.endsWith("/")
+    ? PROXY_BASE
+    : `${PROXY_BASE}/`;
+
+  const url = new URL(endpoint, base);
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
-      url.searchParams.set(key, value);
+      url.searchParams.set(key, String(value));
     }
   });
 
@@ -42,43 +56,45 @@ async function proxyRequest(path, params = {}) {
     headers: { Accept: "application/json" }
   });
 
-  const payload = await response.json().catch(() => ({}));
+  const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(payload.error || `Weather service error (${response.status}).`);
+    throw new Error(
+      payload?.message ||
+      payload?.error ||
+      `Weather request failed (${response.status}).`
+    );
   }
 
   return payload;
 }
 
-function escapeHTML(value) {
-  return String(value ?? "").replace(/[&<>"']/g, char => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  }[char]));
+function celsiusToFahrenheit(value) {
+  return value * 9 / 5 + 32;
 }
 
-function celsiusToFahrenheit(c) {
-  return c * 9 / 5 + 32;
+function temperatureValue(value) {
+  const converted = state.unit === "C"
+    ? value
+    : celsiusToFahrenheit(value);
+
+  return `${Math.round(converted)}°${state.unit}`;
 }
 
-function temperatureValue(c) {
-  const value = state.unit === "C" ? c : celsiusToFahrenheit(c);
-  return `${Math.round(value)}°${state.unit}`;
+function temperatureNumber(value) {
+  const converted = state.unit === "C"
+    ? value
+    : celsiusToFahrenheit(value);
+
+  return `${Math.round(converted)}°`;
 }
 
-function temperatureNumber(c) {
-  return Math.round(
-    state.unit === "C" ? c : celsiusToFahrenheit(c)
-  ) + "°";
-}
+function windValue(metersPerSecond) {
+  const speed = state.unit === "C"
+    ? metersPerSecond * 3.6
+    : metersPerSecond * 2.236936;
 
-function windValue(mps) {
-  const value = state.unit === "C" ? mps * 3.6 : mps * 2.236936;
-  return `${Math.round(value)} ${state.unit === "C" ? "km/h" : "mph"}`;
+  return `${Math.round(speed)} ${state.unit === "C" ? "km/h" : "mph"}`;
 }
 
 function weatherEmoji(id, isDay = true) {
@@ -93,151 +109,201 @@ function weatherEmoji(id, isDay = true) {
   return "🌡️";
 }
 
-function formatCityTime(unixSeconds, offsetSeconds, options = {}) {
-  const shifted = new Date((unixSeconds + offsetSeconds) * 1000);
+function formatCityTime(timestamp, options = {}) {
+  const date = new Date((timestamp + state.cityTimezoneOffset) * 1000);
+
   return new Intl.DateTimeFormat(undefined, {
     ...options,
     timeZone: "UTC"
-  }).format(shifted);
+  }).format(date);
 }
 
-function localCityTime(date = new Date()) {
-  if (state.cityTimezoneOffset === null) return null;
-
-  const shifted = new Date(
-    date.getTime() + state.cityTimezoneOffset * 1000
-  );
-
-  return {
-    time: new Intl.DateTimeFormat(undefined, {
-      timeZone: "UTC",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true
-    }).format(shifted),
-
-    date: new Intl.DateTimeFormat(undefined, {
-      timeZone: "UTC",
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-      year: "numeric"
-    }).format(shifted)
-  };
-}
-
-function formatClock() {
+function updateClocks() {
   const now = new Date();
 
-  $("device-clock").textContent =
+  setText(
+    "device-clock",
     new Intl.DateTimeFormat(undefined, {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
       hour12: true
-    }).format(now);
+    }).format(now)
+  );
 
-  $("device-clock-date").textContent =
+  setText(
+    "device-clock-date",
     new Intl.DateTimeFormat(undefined, {
       weekday: "long",
       month: "short",
       day: "numeric",
       year: "numeric"
-    }).format(now);
+    }).format(now)
+  );
 
-  $("today-date").textContent =
+  setText(
+    "today-date",
     new Intl.DateTimeFormat(undefined, {
       weekday: "short",
       month: "short",
       day: "numeric"
-    }).format(now);
+    }).format(now)
+  );
 
-  const city = localCityTime(now);
+  if (state.cityName) {
+    const shifted = new Date(
+      now.getTime() + state.cityTimezoneOffset * 1000
+    );
 
-  if (city) {
-    $("city-clock").textContent = city.time;
-    $("city-clock-date").textContent = city.date;
+    setText(
+      "city-clock",
+      new Intl.DateTimeFormat(undefined, {
+        timeZone: "UTC",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+      }).format(shifted)
+    );
+
+    setText(
+      "city-clock-date",
+      new Intl.DateTimeFormat(undefined, {
+        timeZone: "UTC",
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      }).format(shifted)
+    );
   }
 }
 
-function renderCurrent(data) {
+/*
+ * Render weather data while preserving the user's selected city name.
+ * The displayed name does not depend on the API's nearby station name.
+ */
+function renderCurrent(data, selectedPlace = null) {
   state.weather = data;
   state.cityTimezoneOffset = Number(data.timezone || 0);
-  state.cityName = data.name || "Selected city";
-  state.cityCountry = data.sys?.country || "";
 
-  const main = data.weather?.[0] || {};
+  state.cityName = selectedPlace?.name || data.name || "Selected city";
+  state.cityCountry =
+    selectedPlace?.country || data.sys?.country || "";
 
-  $("location-name").textContent = state.cityName;
-  $("location-meta").textContent = [
-    state.cityCountry,
-    `Updated ${new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit"
-    })}`
-  ].filter(Boolean).join(" · ");
+  const condition = data.weather?.[0] || {};
+  const main = data.main || {};
 
-  $("condition-pill").textContent = main.main || "Weather";
-  $("temperature").textContent = Math.round(
-    state.unit === "C"
-      ? data.main.temp
-      : celsiusToFahrenheit(data.main.temp)
+  setText("location-name", state.cityName);
+
+  setText(
+    "location-meta",
+    [
+      selectedPlace?.state,
+      state.cityCountry,
+      `Updated ${new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      })}`
+    ].filter(Boolean).join(" · ")
   );
 
-  $("description").textContent = main.description || main.main || "Current conditions";
-  $("feels-like").textContent = temperatureValue(data.main.feels_like);
-  $("weather-art").textContent = weatherEmoji(main.id);
-  $("humidity").textContent = `${data.main.humidity}%`;
-  $("wind").textContent = windValue(data.wind?.speed || 0);
-  $("pressure").textContent = `${data.main.pressure} hPa`;
+  setText("condition-pill", condition.main || "Weather");
 
-  $("sunrise").textContent = data.sys?.sunrise
-    ? formatCityTime(data.sys.sunrise, state.cityTimezoneOffset, {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true
-      })
-    : "—";
+  if (main.temp !== undefined) {
+    setText(
+      "temperature",
+      Math.round(
+        state.unit === "C"
+          ? main.temp
+          : celsiusToFahrenheit(main.temp)
+      )
+    );
+  }
 
-  $("city-clock-label").textContent =
-    `${state.cityName.toUpperCase()} TIME`;
+  setText(
+    "description",
+    condition.description || condition.main || "Current conditions"
+  );
 
-  formatClock();
+  if (main.feels_like !== undefined) {
+    setText("feels-like", temperatureValue(main.feels_like));
+  }
+
+  setText("weather-art", weatherEmoji(condition.id));
+  setText("humidity", main.humidity != null ? `${main.humidity}%` : "—");
+
+  setText(
+    "wind",
+    data.wind?.speed != null ? windValue(data.wind.speed) : "—"
+  );
+
+  setText(
+    "pressure",
+    main.pressure != null ? `${main.pressure} hPa` : "—"
+  );
+
+  setText(
+    "sunrise",
+    data.sys?.sunrise
+      ? formatCityTime(data.sys.sunrise, {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true
+        })
+      : "—"
+  );
+
+  setText("city-clock-label", `${state.cityName.toUpperCase()} TIME`);
+
+  updateClocks();
+}
+
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[character]);
 }
 
 function forecastBuckets(data) {
   const days = new Map();
+  const offset = Number(data.city?.timezone || 0);
 
   for (const item of data.list || []) {
-    const localDate = new Date(
-      (item.dt + (data.city?.timezone || 0)) * 1000
-    );
+    const date = new Date((item.dt + offset) * 1000);
 
     const key = [
-      localDate.getUTCFullYear(),
-      localDate.getUTCMonth(),
-      localDate.getUTCDate()
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate()
     ].join("-");
 
     if (!days.has(key)) days.set(key, []);
-    days.get(key).push({ ...item, localDate });
+    days.get(key).push({ ...item, localDate: date });
   }
 
   return [...days.values()].map(items => {
     const chosen = items.reduce((best, item) => {
-      return Math.abs(item.localDate.getUTCHours() - 12) <
-        Math.abs(best.localDate.getUTCHours() - 12)
-        ? item
-        : best;
+      const currentDistance = Math.abs(
+        item.localDate.getUTCHours() - 12
+      );
+
+      const bestDistance = Math.abs(
+        best.localDate.getUTCHours() - 12
+      );
+
+      return currentDistance < bestDistance ? item : best;
     }, items[0]);
 
     return {
       date: chosen.localDate,
       min: Math.min(...items.map(item => item.main.temp_min)),
       max: Math.max(...items.map(item => item.main.temp_max)),
-      weather: chosen.weather?.[0] || {},
-      pop: Math.max(...items.map(item => item.pop || 0))
+      weather: chosen.weather?.[0] || {}
     };
   }).slice(0, 5);
 }
@@ -246,17 +312,18 @@ function renderForecast(data) {
   state.forecast = data;
 
   const host = $("forecast-list");
-  host.innerHTML = "";
+  if (!host) return;
 
-  const buckets = forecastBuckets(data);
+  host.replaceChildren();
 
-  if (!buckets.length) {
-    host.innerHTML =
-      '<div class="forecast-empty">No forecast data returned.</div>';
+  const days = forecastBuckets(data);
+
+  if (!days.length) {
+    host.textContent = "No forecast data available.";
     return;
   }
 
-  buckets.forEach((day, index) => {
+  days.forEach((day, index) => {
     const card = document.createElement("article");
     card.className = `forecast-day${index === 0 ? " today" : ""}`;
 
@@ -274,8 +341,8 @@ function renderForecast(data) {
     }).format(day.date);
 
     card.innerHTML = `
-      <div class="forecast-name">${weekday}</div>
-      <div class="forecast-date">${date}</div>
+      <div class="forecast-name">${escapeHTML(weekday)}</div>
+      <div class="forecast-date">${escapeHTML(date)}</div>
       <div class="forecast-icon">${weatherEmoji(day.weather.id)}</div>
       <div class="forecast-description">${escapeHTML(
         day.weather.description || day.weather.main || "Conditions"
@@ -290,7 +357,7 @@ function renderForecast(data) {
   });
 }
 
-/* Add a city dropdown without editing index.html or style.css. */
+/* City selection dropdown */
 function setupCityResults() {
   const form = $("search-form");
   if (!form) return null;
@@ -318,10 +385,12 @@ function setupCityResults() {
     });
 
     const parent = form.parentElement;
-    if (getComputedStyle(parent).position === "static") {
+
+    if (parent && getComputedStyle(parent).position === "static") {
       parent.style.position = "relative";
     }
-    parent.appendChild(panel);
+
+    (parent || form).appendChild(panel);
   }
 
   return panel;
@@ -330,20 +399,30 @@ function setupCityResults() {
 const cityResults = setupCityResults();
 
 function closeCityResults() {
-  if (cityResults) {
-    cityResults.hidden = true;
-    cityResults.innerHTML = "";
-  }
+  if (!cityResults) return;
+
+  cityResults.hidden = true;
+  cityResults.replaceChildren();
 }
 
 function showCityResults(results, requestId) {
-  if (!cityResults) return;
+  if (!cityResults) {
+    setStatus(
+      "City results panel is unavailable. Check search-form in index.html.",
+      "error"
+    );
+    return;
+  }
 
-  cityResults.innerHTML = "";
+  cityResults.replaceChildren();
 
   if (!results.length) {
-    cityResults.innerHTML =
-      '<div style="padding:12px;color:#fff">No matching cities found.</div>';
+    const message = document.createElement("div");
+    message.textContent = "No matching cities found.";
+    message.style.padding = "12px";
+    message.style.color = "#fff";
+
+    cityResults.appendChild(message);
     cityResults.hidden = false;
     return;
   }
@@ -352,14 +431,13 @@ function showCityResults(results, requestId) {
     const button = document.createElement("button");
     button.type = "button";
 
-    const parts = [
+    const label = [
       place.name,
       place.state,
       place.country
-    ].filter(Boolean);
+    ].filter(Boolean).join(", ");
 
-    button.textContent = parts.join(", ");
-    button.setAttribute("aria-label", `Select ${button.textContent}`);
+    button.textContent = label;
 
     Object.assign(button.style, {
       display: "block",
@@ -375,35 +453,34 @@ function showCityResults(results, requestId) {
       cursor: "pointer"
     });
 
-    button.addEventListener("mouseenter", () => {
-      button.style.background = "rgba(255,255,255,.12)";
-    });
-
-    button.addEventListener("mouseleave", () => {
-      button.style.background = "transparent";
-    });
-
     button.addEventListener("click", () => {
       if (requestId !== state.requestId) return;
 
-      // Keep the exact selected geocoding result.
-      state.selectedLocation = {
+      const lat = Number(place.lat);
+      const lon = Number(place.lon);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        setStatus("The selected city has invalid coordinates.", "error");
+        return;
+      }
+
+      const selectedPlace = {
         name: place.name,
         state: place.state || "",
         country: place.country || "",
-        lat: Number(place.lat),
-        lon: Number(place.lon)
+        lat,
+        lon
       };
 
+      state.selectedLocation = selectedPlace;
       closeCityResults();
 
-      // Pass these exact coordinates to the weather endpoints.
       loadByCoordinates(
-        state.selectedLocation.lat,
-        state.selectedLocation.lon,
+        lat,
+        lon,
         "selected city",
         requestId,
-        state.selectedLocation
+        selectedPlace
       );
     });
 
@@ -415,8 +492,8 @@ function showCityResults(results, requestId) {
 
 async function searchCity(city) {
   const requestId = ++state.requestId;
-  closeCityResults();
 
+  closeCityResults();
   setStatus(`Searching worldwide for ${city}…`);
 
   try {
@@ -428,16 +505,18 @@ async function searchCity(city) {
     if (requestId !== state.requestId) return;
 
     if (!Array.isArray(results) || results.length === 0) {
-      throw new Error(`Couldn't find "${city}". Check the spelling.`);
+      throw new Error(`No cities found for "${city}".`);
     }
 
     showCityResults(results, requestId);
+
     setStatus(
-      `Found ${results.length} result(s). Select the correct city from the list.`
+      `Found ${results.length} result(s). Select the correct city.`
     );
   } catch (error) {
     if (requestId !== state.requestId) return;
-    setStatus(error.message || "City search failed. Try again.", "error");
+
+    setStatus(error.message || "City search failed.", "error");
   }
 }
 
@@ -448,12 +527,10 @@ async function loadByCoordinates(
   requestId = ++state.requestId,
   selectedPlace = null
 ) {
-  // Invalidate any older search or GPS request.
-  state.requestId = Math.max(state.requestId, requestId);
   const thisRequest = requestId;
 
   if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) {
-    setStatus("Invalid city coordinates. Please search again.", "error");
+    setStatus("Invalid coordinates. Please search again.", "error");
     return;
   }
 
@@ -464,89 +541,73 @@ async function loadByCoordinates(
       proxyRequest("weather", { lat, lon }),
       proxyRequest("forecast", { lat, lon })
     ]);
-const debugInfo = [
-  `Selected city: ${selectedPlace?.name || label}`,
-  `Selected coordinates: ${lat}, ${lon}`,
-  `API coordinates: ${current.coord?.lat}, ${current.coord?.lon}`,
-  `API city: ${current.name}`
-].join("\n");
 
-let debugBox = document.getElementById("weather-debug");
-
-if (!debugBox) {
-  debugBox = document.createElement("pre");
-  debugBox.id = "weather-debug";
-
-  Object.assign(debugBox.style, {
-    whiteSpace: "pre-wrap",
-    overflowWrap: "anywhere",
-    padding: "12px",
-    margin: "12px",
-    borderRadius: "10px",
-    background: "#10182b",
-    color: "#b9e8ff",
-    fontSize: "13px"
-  });
-
-  document.body.appendChild(debugBox);
-}
-
-debugBox.textContent = debugInfo;
-
-    // Ignore late responses from an earlier city or GPS request.
+    // Ignore old responses after the user starts a newer search.
     if (thisRequest !== state.requestId) return;
 
-    renderCurrent(current);
+    if (!current || !current.main || !Array.isArray(current.weather)) {
+      throw new Error("The weather service returned invalid data.");
+    }
+
+    /*
+     * Keep the selected city name for display.
+     * Do not change the weather values or coordinates returned by the API.
+     */
+    renderCurrent(current, selectedPlace);
     renderForecast(forecast);
 
-    // Show both the chosen search result and the weather API's location.
     if (selectedPlace) {
-      const expected = selectedPlace.name;
-      const returned = current.name || "Unknown location";
-
-      $("location-meta").textContent = [
-        selectedPlace.state,
-        selectedPlace.country,
-        `Weather result: ${returned}`
-      ].filter(Boolean).join(" · ");
-
       setStatus(
-        `Selected ${expected}. Weather service returned ${returned}.`,
+        `Showing ${selectedPlace.name}, ${selectedPlace.country}.`,
         "success"
       );
     } else {
       setStatus(
-        `Weather loaded for ${current.name || label}. Updates every 10 minutes.`,
+        `Weather loaded for ${current.name || label}.`,
         "success"
       );
     }
 
-    state.selectedLocation = selectedPlace || { lat, lon, name: current.name };
+    state.selectedLocation = selectedPlace || {
+      lat: Number(lat),
+      lon: Number(lon),
+      name: current.name
+    };
 
-    startAutoRefresh(() => {
-      const selected = state.selectedLocation;
-      if (selected) {
-        loadByCoordinates(
-          selected.lat,
-          selected.lon,
-          "selected city",
-          ++state.requestId,
-          selected
-        );
-      }
+    if (state.refreshTimer) clearInterval(state.refreshTimer);
+
+    state.refreshTimer = setInterval(() => {
+      const location = state.selectedLocation;
+      if (!location) return;
+
+      const refreshRequestId = ++state.requestId;
+
+      loadByCoordinates(
+        location.lat,
+        location.lon,
+        "selected city",
+        refreshRequestId,
+        location.lat != null && location.lon != null &&
+          location.country != null
+          ? location
+          : null
+      );
     }, 10 * 60 * 1000);
+
   } catch (error) {
     if (thisRequest !== state.requestId) return;
+
     setStatus(error.message || "Could not load weather.", "error");
   }
 }
 
 function useGPS() {
   const requestId = ++state.requestId;
+
   closeCityResults();
 
   if (!navigator.geolocation) {
-    setStatus("Location isn't supported. Search for a city instead.", "error");
+    setStatus("Location is unavailable. Search for a city instead.", "error");
     return;
   }
 
@@ -554,15 +615,12 @@ function useGPS() {
 
   navigator.geolocation.getCurrentPosition(
     position => {
-      // Don't let a delayed GPS result replace a newer city search.
       if (requestId !== state.requestId) return;
 
-      loadByCoordinates(
-        position.coords.latitude,
-        position.coords.longitude,
-        "GPS",
-        requestId
-      );
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+
+      loadByCoordinates(lat, lon, "GPS", requestId);
     },
     error => {
       if (requestId !== state.requestId) return;
@@ -570,29 +628,34 @@ function useGPS() {
       const message = error.code === 1
         ? "Location permission denied. Search for a city instead."
         : error.code === 2
-          ? "Your location couldn't be determined. Search for a city instead."
+          ? "Your location could not be determined. Search for a city instead."
           : "Location request timed out. Search for a city instead.";
 
       setStatus(message, "error");
     },
-    { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 }
+    {
+      enableHighAccuracy: false,
+      timeout: 12000,
+      maximumAge: 300000
+    }
   );
 }
 
-function startAutoRefresh(callback, interval) {
-  if (state.refreshTimer) clearInterval(state.refreshTimer);
-  state.refreshTimer = setInterval(callback, interval);
+/* Search form */
+const searchForm = $("search-form");
+
+if (searchForm) {
+  searchForm.addEventListener("submit", event => {
+    event.preventDefault();
+
+    const input = $("city-input");
+    const city = input?.value.trim();
+
+    if (city) searchCity(city);
+  });
 }
 
-/* Search form */
-$("search-form").addEventListener("submit", event => {
-  event.preventDefault();
-
-  const city = $("city-input").value.trim();
-  if (city) searchCity(city);
-});
-
-/* Close the city menu when tapping outside it. */
+/* Close dropdown when tapping outside it. */
 document.addEventListener("click", event => {
   if (
     cityResults &&
@@ -603,27 +666,37 @@ document.addEventListener("click", event => {
   }
 });
 
-$("gps-button").addEventListener("click", useGPS);
+/* GPS button */
+const gpsButton = $("gps-button");
 
-/* Temperature unit buttons */
+if (gpsButton) {
+  gpsButton.addEventListener("click", useGPS);
+}
+
+/* Celsius / Fahrenheit controls */
 document.querySelectorAll(".unit-button").forEach(button => {
   button.addEventListener("click", () => {
-    state.unit = button.dataset.unit;
+    state.unit = button.dataset.unit === "F" ? "F" : "C";
 
     document.querySelectorAll(".unit-button").forEach(item => {
       const active = item === button;
+
       item.classList.toggle("active", active);
       item.setAttribute("aria-pressed", String(active));
     });
 
-    if (state.weather) renderCurrent(state.weather);
-    if (state.forecast) renderForecast(state.forecast);
+    if (state.weather) {
+      renderCurrent(state.weather, state.selectedLocation);
+    }
+
+    if (state.forecast) {
+      renderForecast(state.forecast);
+    }
   });
 });
 
-setInterval(formatClock, 1000);
-formatClock();
+/* Live clocks */
+updateClocks();
+setInterval(updateClocks, 1000);
 
-/* Start with a neutral dashboard; don't automatically overwrite city searches with GPS. */
 setStatus("Search for any city worldwide to see its weather.");
-      
