@@ -6,7 +6,7 @@
  * Do NOT put your OpenWeatherMap API key in this file. Store it as a
  * Cloudflare Worker secret named OPENWEATHER_API_KEY instead.
  */
-const PROXY_BASE = "PASTE_YOUR_CLOUDFLARE_WORKER_URL_HERE";
+const PROXY_BASE = "https://atmos-weather-proxy.gamingmriganga.workers.dev";
 
 const state = {
   unit: "C",
