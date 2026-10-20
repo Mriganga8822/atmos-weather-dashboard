@@ -366,3 +366,54 @@ select {
     transition-duration: 0.01ms !important;
   }
 }
+
+.city-results {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 16px;
+  padding: 10px;
+  background: rgba(15, 22, 48, 0.96);
+  border: 1px solid rgba(157, 170, 255, 0.24);
+  border-radius: 18px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22);
+}
+
+.city-results[hidden] {
+  display: none;
+}
+
+.city-result {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 13px 14px;
+  color: #f4f5ff;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(180, 190, 255, 0.1);
+  border-radius: 12px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.city-result:hover,
+.city-result:focus-visible {
+  background: rgba(139, 148, 255, 0.16);
+  border-color: rgba(139, 190, 255, 0.55);
+  outline: none;
+}
+
+.city-result-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.city-result-details {
+  color: #aeb9d8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+
+
