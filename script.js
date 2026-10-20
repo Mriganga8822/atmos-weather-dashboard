@@ -1,8 +1,8 @@
 
 /*
  * Atmos Weather Dashboard
- * Uses your deployed Cloudflare Worker as the weather API proxy.
- * Keep OPENWEATHER_API_KEY in Cloudflare Worker secrets, never here.
+ * Worldwide city search with selectable locations.
+ * Keep OPENWEATHER_API_KEY in Cloudflare Worker secrets.
  */
 
 const PROXY_BASE = "https://atmos-weather-proxy.gamingmriganga.workers.dev";
@@ -19,8 +19,6 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status-message");
-
-// Each new search/GPS request invalidates older requests.
 let activeRequestId = 0;
 
 function setStatus(message, kind = "") {
@@ -35,19 +33,11 @@ function proxyIsConfigured() {
 
 async function proxyRequest(path, params = {}) {
   if (!proxyIsConfigured()) {
-    throw new Error(
-      "Setup needed: add your deployed Cloudflare Worker URL to PROXY_BASE in script.js."
-    );
+    throw new Error("Configure your Cloudflare Worker URL in PROXY_BASE.");
   }
 
-  const base = PROXY_BASE.endsWith("/")
-    ? PROXY_BASE
-    : `${PROXY_BASE}/`;
-
-  const url = new URL(
-    path.replace(/^\//, ""),
-    base
-  );
+  const base = PROXY_BASE.endsWith("/") ? PROXY_BASE : `${PROXY_BASE}/`;
+  const url = new URL(path.replace(/^\//, ""), base);
 
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== "") {
@@ -62,39 +52,30 @@ async function proxyRequest(path, params = {}) {
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(
-      payload.error || `Weather service error (${response.status}).`
-    );
+    throw new Error(payload.error || `Weather service error (${response.status}).`);
   }
 
   return payload;
 }
 
+/* Temperature and weather helpers */
+
 function celsiusToFahrenheit(c) {
-  return (c * 9 / 5) + 32;
+  return c * 9 / 5 + 32;
 }
 
 function temperatureValue(celsius) {
-  const value = state.unit === "C"
-    ? celsius
-    : celsiusToFahrenheit(celsius);
-
+  const value = state.unit === "C" ? celsius : celsiusToFahrenheit(celsius);
   return `${Math.round(value)}°${state.unit}`;
 }
 
 function temperatureNumber(celsius) {
-  const value = state.unit === "C"
-    ? celsius
-    : celsiusToFahrenheit(celsius);
-
+  const value = state.unit === "C" ? celsius : celsiusToFahrenheit(celsius);
   return `${Math.round(value)}°`;
 }
 
 function windValue(mps) {
-  const value = state.unit === "C"
-    ? mps * 3.6
-    : mps * 2.236936;
-
+  const value = state.unit === "C" ? mps * 3.6 : mps * 2.236936;
   return `${Math.round(value)} ${state.unit === "C" ? "km/h" : "mph"}`;
 }
 
@@ -111,9 +92,7 @@ function weatherEmoji(code, isDay = true) {
 }
 
 function formatCityTime(unixSeconds, offsetSeconds, options = {}) {
-  const shifted = new Date(
-    (unixSeconds + offsetSeconds) * 1000
-  );
+  const shifted = new Date((unixSeconds + offsetSeconds) * 1000);
 
   return new Intl.DateTimeFormat(undefined, {
     ...options,
@@ -185,6 +164,8 @@ function weatherDescription(main, description) {
   return description || main || "Current conditions";
 }
 
+/* Current weather display */
+
 function renderCurrent(data) {
   state.weather = data;
   state.cityTimezoneOffset = Number(data.timezone || 0);
@@ -206,21 +187,14 @@ function renderCurrent(data) {
   $("condition-pill").textContent = main.main || "Weather";
 
   $("temperature").textContent = Math.round(
-    state.unit === "C"
-      ? data.main.temp
-      : celsiusToFahrenheit(data.main.temp)
+    state.unit === "C" ? data.main.temp : celsiusToFahrenheit(data.main.temp)
   );
 
-  $("description").textContent = weatherDescription(
-    main.main,
-    main.description
-  );
+  $("description").textContent =
+    weatherDescription(main.main, main.description);
 
-  $("feels-like").textContent =
-    temperatureValue(data.main.feels_like);
-
+  $("feels-like").textContent = temperatureValue(data.main.feels_like);
   $("weather-art").textContent = weatherEmoji(main.id, true);
-
   $("humidity").textContent = `${data.main.humidity}%`;
   $("wind").textContent = windValue(data.wind?.speed || 0);
   $("pressure").textContent = `${data.main.pressure} hPa`;
@@ -233,11 +207,11 @@ function renderCurrent(data) {
       )
     : "—";
 
-  $("city-clock-label").textContent =
-    `${state.cityName.toUpperCase()} TIME`;
-
+  $("city-clock-label").textContent = `${state.cityName.toUpperCase()} TIME`;
   formatClock();
 }
+
+/* Five-day forecast */
 
 function forecastBuckets(forecastData) {
   const days = new Map();
@@ -254,20 +228,13 @@ function forecastBuckets(forecastData) {
     ].join("-");
 
     if (!days.has(key)) days.set(key, []);
-
     days.get(key).push({ ...item, localDate });
   }
 
   return [...days.values()].map(items => {
     const chosen = items.reduce((best, item) => {
-      const distance = Math.abs(
-        item.localDate.getUTCHours() - 12
-      );
-
-      const bestDistance = Math.abs(
-        best.localDate.getUTCHours() - 12
-      );
-
+      const distance = Math.abs(item.localDate.getUTCHours() - 12);
+      const bestDistance = Math.abs(best.localDate.getUTCHours() - 12);
       return distance < bestDistance ? item : best;
     }, items[0]);
 
@@ -286,7 +253,6 @@ function renderForecast(data) {
 
   const buckets = forecastBuckets(data);
   const host = $("forecast-list");
-
   host.innerHTML = "";
 
   if (!buckets.length) {
@@ -297,9 +263,7 @@ function renderForecast(data) {
 
   buckets.forEach((day, index) => {
     const card = document.createElement("article");
-
-    card.className =
-      `forecast-day${index === 0 ? " today" : ""}`;
+    card.className = `forecast-day${index === 0 ? " today" : ""}`;
 
     const weekday = index === 0
       ? "Today"
@@ -314,8 +278,7 @@ function renderForecast(data) {
       timeZone: "UTC"
     }).format(day.date);
 
-    const description =
-      day.weather.description || day.weather.main || "Conditions";
+    const description = day.weather.description || day.weather.main || "Conditions";
 
     card.innerHTML = `
       <div class="forecast-name">${weekday}</div>
@@ -342,13 +305,128 @@ function escapeHTML(value) {
   }[char]));
 }
 
-function startAutoRefresh(callback, interval) {
-  if (state.refreshTimer) {
-    clearInterval(state.refreshTimer);
+/* Worldwide city results menu */
+
+function ensureCityResultsPanel() {
+  let panel = $("city-results");
+
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "city-results";
+    panel.className = "city-results";
+    panel.setAttribute("role", "listbox");
+    panel.setAttribute("aria-label", "Matching cities");
+    panel.hidden = true;
+
+    $("search-form").insertAdjacentElement("afterend", panel);
   }
 
-  state.refreshTimer = setInterval(callback, interval);
+  return panel;
 }
+
+function hideCityResults() {
+  const panel = $("city-results");
+  if (!panel) return;
+
+  panel.replaceChildren();
+  panel.hidden = true;
+}
+
+function showCityResults(results, requestId) {
+  const panel = ensureCityResultsPanel();
+  panel.replaceChildren();
+  panel.hidden = false;
+
+  results.forEach(place => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "city-result";
+    button.setAttribute("role", "option");
+
+    const title = document.createElement("span");
+    title.className = "city-result-name";
+    title.textContent = place.name || "Unknown city";
+
+    const details = document.createElement("span");
+    details.className = "city-result-details";
+    details.textContent = [
+      place.state,
+      place.country
+    ].filter(Boolean).join(", ") ||
+      `${Number(place.lat).toFixed(2)}, ${Number(place.lon).toFixed(2)}`;
+
+    button.append(title, details);
+
+    button.addEventListener("click", async () => {
+      if (requestId !== activeRequestId) return;
+
+      const selectionId = ++activeRequestId;
+      hideCityResults();
+
+      $("city-input").value = [
+        place.name,
+        place.state,
+        place.country
+      ].filter(Boolean).join(", ");
+
+      await loadByCoordinates(
+        place.lat,
+        place.lon,
+        "searched",
+        selectionId
+      );
+    });
+
+    panel.appendChild(button);
+  });
+}
+
+/* Search cities worldwide */
+
+async function searchCity(city) {
+  const requestId = ++activeRequestId;
+
+  if (state.refreshTimer) {
+    clearInterval(state.refreshTimer);
+    state.refreshTimer = null;
+  }
+
+  hideCityResults();
+  setStatus(`Searching worldwide for ${city}…`);
+
+  try {
+    const results = await proxyRequest("geocode", {
+      q: city.trim(),
+      limit: 5
+    });
+
+    if (requestId !== activeRequestId) return;
+
+    if (!Array.isArray(results) || results.length === 0) {
+      throw new Error(
+        `No locations found for "${city}". Try "City, Country".`
+      );
+    }
+
+    showCityResults(results, requestId);
+
+    setStatus(
+      `Found ${results.length} matching location${results.length === 1 ? "" : "s"}. Select the correct city below.`,
+      "success"
+    );
+  } catch (error) {
+    if (requestId !== activeRequestId) return;
+
+    hideCityResults();
+
+    setStatus(
+      error.message || "City search failed. Please try again.",
+      "error"
+    );
+  }
+}
+
+/* Load weather for the selected coordinates */
 
 async function loadByCoordinates(
   lat,
@@ -358,7 +436,8 @@ async function loadByCoordinates(
 ) {
   if (requestId !== activeRequestId) return;
 
-  setStatus(`Loading weather for ${label}…`);
+  hideCityResults();
+  setStatus(`Loading weather for your ${label}…`);
 
   try {
     const [current, forecast] = await Promise.all([
@@ -366,14 +445,13 @@ async function loadByCoordinates(
       proxyRequest("forecast", { lat, lon })
     ]);
 
-    // Ignore late responses from previous searches.
     if (requestId !== activeRequestId) return;
 
     renderCurrent(current);
     renderForecast(forecast);
 
     setStatus(
-      `Weather loaded for ${current.name || label}. Updates automatically about every 10 minutes.`,
+      `Weather loaded for ${current.name || "your location"}. Updates automatically about every 10 minutes.`,
       "success"
     );
 
@@ -391,56 +469,12 @@ async function loadByCoordinates(
   }
 }
 
-async function searchCity(city) {
-  const requestId = ++activeRequestId;
-
-  // Cancel any scheduled refresh for the previously selected city.
-  if (state.refreshTimer) {
-    clearInterval(state.refreshTimer);
-    state.refreshTimer = null;
-  }
-
-  setStatus(`Searching for ${city}…`);
-
-  try {
-    const results = await proxyRequest("geocode", {
-      q: city,
-      limit: 5
-    });
-
-    if (requestId !== activeRequestId) return;
-
-    if (!Array.isArray(results) || !results.length) {
-      throw new Error(
-        `Couldn't find "${city}". Check the spelling or try another city.`
-      );
-    }
-
-    const requestedName = city
-      .split(",")[0]
-      .trim()
-      .toLowerCase();
-
-    // Prefer the exact city-name match if one is returned.
-    const match = results.find(
-      result => result.name?.trim().toLowerCase() === requestedName
-    ) || results[0];
-
-    await loadByCoordinates(
-      match.lat,
-      match.lon,
-      "searched",
-      requestId
-    );
-  } catch (error) {
-    if (requestId !== activeRequestId) return;
-
-    setStatus(
-      error.message || "City search failed. Please try again.",
-      "error"
-    );
-  }
+function startAutoRefresh(callback, interval) {
+  if (state.refreshTimer) clearInterval(state.refreshTimer);
+  state.refreshTimer = setInterval(callback, interval);
 }
+
+/* GPS location */
 
 function useGPS() {
   const requestId = ++activeRequestId;
@@ -450,17 +484,14 @@ function useGPS() {
     state.refreshTimer = null;
   }
 
+  hideCityResults();
+
   if (!navigator.geolocation) {
-    setStatus(
-      "This browser does not support location. Search for a city instead.",
-      "error"
-    );
+    setStatus("This browser does not support location. Search for a city instead.", "error");
     return;
   }
 
-  setStatus(
-    "Requesting your location… allow location access in your browser."
-  );
+  setStatus("Requesting your location… allow location access in your browser.");
 
   navigator.geolocation.getCurrentPosition(
     position => {
@@ -473,7 +504,6 @@ function useGPS() {
         requestId
       );
     },
-
     error => {
       if (requestId !== activeRequestId) return;
 
@@ -485,7 +515,6 @@ function useGPS() {
 
       setStatus(message, "error");
     },
-
     {
       enableHighAccuracy: false,
       timeout: 12000,
@@ -494,26 +523,23 @@ function useGPS() {
   );
 }
 
-// City search form
+/* Event handlers */
+
 $("search-form").addEventListener("submit", event => {
   event.preventDefault();
 
   const city = $("city-input").value.trim();
-
   if (city) searchCity(city);
 });
 
-// GPS button
 $("gps-button").addEventListener("click", useGPS);
 
-// Temperature unit buttons
 document.querySelectorAll(".unit-button").forEach(button => {
   button.addEventListener("click", () => {
     state.unit = button.dataset.unit;
 
     document.querySelectorAll(".unit-button").forEach(item => {
       const active = item === button;
-
       item.classList.toggle("active", active);
       item.setAttribute("aria-pressed", String(active));
     });
@@ -521,6 +547,19 @@ document.querySelectorAll(".unit-button").forEach(button => {
     if (state.weather) renderCurrent(state.weather);
     if (state.forecast) renderForecast(state.forecast);
   });
+});
+
+// Close the city list when clicking outside it.
+document.addEventListener("click", event => {
+  const panel = $("city-results");
+  if (!panel) return;
+
+  if (
+    !panel.contains(event.target) &&
+    !$("search-form").contains(event.target)
+  ) {
+    hideCityResults();
+  }
 });
 
 // Update clocks every second.
@@ -534,5 +573,5 @@ if (!proxyIsConfigured()) {
   );
 } else {
   useGPS();
-    }
-  
+        }
+                          
