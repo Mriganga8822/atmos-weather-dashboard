@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>Atmos — Weather Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <main class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Atmos home"><span class="brand-mark">✦</span><span>atmos<span class="brand-dot">.</span></span></a>
+      <div class="topbar-note"><span class="live-dot"></span> LIVE WEATHER</div>
+    </header>
+
+    <section class="intro">
+      <div>
+        <p class="eyebrow">YOUR PERSONAL WEATHER SPACE</p>
+        <h1>Weather, <span>at a glance.</span></h1>
+        <p class="intro-copy">A little clarity for whatever the day brings.</p>
+      </div>
+      <div class="date-chip"><span class="date-icon">◷</span><span id="today-date">Loading date…</span></div>
+    </section>
+
+    <section class="search-row" aria-label="Location controls">
+      <form id="search-form" class="search-box">
+        <span class="search-icon" aria-hidden="true">⌕</span>
+        <label class="visually-hidden" for="city-input">Search city</label>
+        <input id="city-input" type="search" placeholder="Search a city (e.g. Guwahati)" autocomplete="off" required>
+        <button class="search-button" type="submit">Search</button>
+      </form>
+      <button id="gps-button" class="gps-button" type="button"><span aria-hidden="true">◎</span> Use my location</button>
+    </section>
+
+    <p id="status-message" class="status-message" role="status" aria-live="polite">Add your proxy URL in script.js to get started.</p>
+
+    <section class="dashboard-grid">
+      <article class="panel current-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">CURRENT CONDITIONS</p>
+            <h2 id="location-name">Choose a location</h2>
+            <p id="location-meta" class="muted">Search for a city or use GPS</p>
+          </div>
+          <span id="condition-pill" class="condition-pill">—</span>
+        </div>
+        <div class="current-main">
+          <div class="temperature-block">
+            <div class="temperature"><span id="temperature">—</span><span class="degree">°</span></div>
+            <div id="description" class="weather-description">Waiting for weather data</div>
+            <div class="secondary-temp">Feels like <strong id="feels-like">—</strong></div>
+          </div>
+          <div class="weather-art" id="weather-art" aria-hidden="true">☁</div>
+        </div>
+        <div class="unit-switch" role="group" aria-label="Temperature unit">
+          <button type="button" data-unit="C" class="unit-button active" aria-pressed="true">°C</button>
+          <button type="button" data-unit="F" class="unit-button" aria-pressed="false">°F</button>
+          <span class="unit-note">Switch units</span>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><span class="stat-icon">◌</span><span class="stat-label">Humidity</span><strong id="humidity">—</strong><small>Relative humidity</small></div>
+          <div class="stat-card"><span class="stat-icon">↗</span><span class="stat-label">Wind</span><strong id="wind">—</strong><small>Speed</small></div>
+          <div class="stat-card"><span class="stat-icon">⌁</span><span class="stat-label">Pressure</span><strong id="pressure">—</strong><small>Sea-level pressure</small></div>
+          <div class="stat-card"><span class="stat-icon">☀</span><span class="stat-label">Sunrise</span><strong id="sunrise">—</strong><small>Local city time</small></div>
+        </div>
+      </article>
+
+      <article class="panel clock-panel">
+        <div class="panel-heading">
+          <div><p class="eyebrow">TIME ZONES</p><h2>Right now</h2></div>
+          <span class="clock-glyph">◷</span>
+        </div>
+        <div class="clock-card">
+          <div class="clock-label"><span class="clock-pip"></span> YOUR DEVICE</div>
+          <div id="device-clock" class="clock-time">--:--:--</div>
+          <div id="device-clock-date" class="clock-date">Waiting for device time</div>
+        </div>
+        <div class="clock-card city-clock-card">
+          <div class="clock-label"><span class="clock-pip city-pip"></span> <span id="city-clock-label">SELECTED CITY</span></div>
+          <div id="city-clock" class="clock-time">--:--:--</div>
+          <div id="city-clock-date" class="clock-date">Choose a city to see its local time</div>
+        </div>
+        <p class="timezone-note">City time uses the location's time-zone offset returned by the weather service.</p>
+      </article>
+    </section>
+
+    <section class="panel forecast-panel">
+      <div class="panel-heading forecast-heading">
+        <div><p class="eyebrow">PLAN AHEAD</p><h2>5-day forecast</h2></div>
+        <p class="muted forecast-caption">Daily outlook · local city time</p>
+      </div>
+      <div id="forecast-list" class="forecast-list">
+        <div class="forecast-empty">Your forecast will appear here after a location is loaded.</div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>Made for curious skies <span class="footer-star">✦</span></span>
+      <span>Weather data by <a href="https://openweathermap.org/" target="_blank" rel="noreferrer">OpenWeatherMap</a></span>
+    </footer>
+  </main>
+</body>
+</html>
