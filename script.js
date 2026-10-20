@@ -464,6 +464,34 @@ async function loadByCoordinates(
       proxyRequest("weather", { lat, lon }),
       proxyRequest("forecast", { lat, lon })
     ]);
+const debugInfo = [
+  `Selected city: ${selectedPlace?.name || label}`,
+  `Selected coordinates: ${lat}, ${lon}`,
+  `API coordinates: ${current.coord?.lat}, ${current.coord?.lon}`,
+  `API city: ${current.name}`
+].join("\n");
+
+let debugBox = document.getElementById("weather-debug");
+
+if (!debugBox) {
+  debugBox = document.createElement("pre");
+  debugBox.id = "weather-debug";
+
+  Object.assign(debugBox.style, {
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
+    padding: "12px",
+    margin: "12px",
+    borderRadius: "10px",
+    background: "#10182b",
+    color: "#b9e8ff",
+    fontSize: "13px"
+  });
+
+  document.body.appendChild(debugBox);
+}
+
+debugBox.textContent = debugInfo;
 
     // Ignore late responses from an earlier city or GPS request.
     if (thisRequest !== state.requestId) return;
