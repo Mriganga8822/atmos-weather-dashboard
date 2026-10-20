@@ -131,3 +131,238 @@ h2 { font: 600 20px "Space Grotesk", sans-serif; letter-spacing: -.4px; margin: 
   .forecast-day:last-child { grid-column: 1 / -1; }
   .footer { align-items: flex-start; flex-direction: column; }
 }
+/* ==========================================
+   ATMOS WEATHER — PREMIUM GLASS UPGRADE
+   ========================================== */
+
+:root {
+  --atmos-blue: #60a5fa;
+  --atmos-purple: #a78bfa;
+  --atmos-glass: rgba(22, 31, 58, 0.58);
+  --atmos-border: rgba(147, 180, 255, 0.19);
+}
+
+/* Midnight blue and purple atmosphere */
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #080d1c;
+  background-image:
+    radial-gradient(
+      ellipse at 12% 5%,
+      rgba(37, 99, 235, 0.19),
+      transparent 42%
+    ),
+    radial-gradient(
+      ellipse at 88% 22%,
+      rgba(124, 58, 237, 0.17),
+      transparent 40%
+    ),
+    linear-gradient(145deg, #080d1c, #10152b 55%, #090e1e);
+  background-attachment: fixed;
+  overflow-x: hidden;
+}
+
+/* Floating starfield and ambient glow */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,.75) 1px, transparent 1.6px),
+    radial-gradient(circle, rgba(147,197,253,.65) 1px, transparent 1.7px),
+    radial-gradient(circle, rgba(196,181,253,.55) 1px, transparent 1.8px);
+  background-size: 97px 113px, 157px 173px, 211px 193px;
+  background-position: 10px 20px, 60px 80px, 120px 30px;
+  opacity: 0.24;
+  animation: atmosStars 35s linear infinite;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  width: 65vw;
+  height: 65vw;
+  max-width: 650px;
+  max-height: 650px;
+  right: -25%;
+  top: 12%;
+  border-radius: 50%;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    rgba(91, 67, 210, 0.12),
+    rgba(37, 99, 235, 0.04) 45%,
+    transparent 70%
+  );
+  animation: atmosGlow 12s ease-in-out infinite alternate;
+}
+
+@keyframes atmosStars {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-70px); }
+}
+
+@keyframes atmosGlow {
+  from { transform: translate3d(0, 0, 0) scale(0.94); }
+  to   { transform: translate3d(-4%, 3%, 0) scale(1.08); }
+}
+
+/* Frosted glass surfaces */
+:is(
+  .card,
+  .weather-card,
+  .forecast-card,
+  .forecast-item,
+  .hourly-card,
+  .weather-details,
+  .current-weather,
+  .search-container,
+  .search-box,
+  .weather-widget
+) {
+  background: var(--atmos-glass);
+  border: 1px solid var(--atmos-border);
+  border-radius: 20px;
+  box-shadow:
+    0 10px 35px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  transition:
+    border-color 250ms ease,
+    box-shadow 250ms ease,
+    transform 250ms ease;
+}
+
+/* Soft blue-purple hover glow */
+@media (hover: hover) {
+  :is(
+    .card,
+    .weather-card,
+    .forecast-card,
+    .forecast-item,
+    .hourly-card,
+    .weather-details,
+    .current-weather
+  ):hover {
+    border-color: rgba(129, 170, 255, 0.42);
+    box-shadow:
+      0 12px 35px rgba(37, 99, 235, 0.12),
+      0 0 22px rgba(139, 92, 246, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    transform: translateY(-3px);
+  }
+}
+
+/* Glowing headings */
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+h1 {
+  text-shadow: 0 0 28px rgba(96, 165, 250, 0.17);
+}
+
+:is(.temperature, .temp, .current-temp, .main-temperature) {
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 28px rgba(96, 165, 250, 0.22);
+}
+
+/* Gentle floating weather icons */
+:is(
+  .weather-icon,
+  .condition-icon,
+  .forecast-icon,
+  .weather-emoji
+) {
+  transform-origin: center;
+  animation: atmosFloat 4s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px rgba(96, 165, 250, 0.2));
+}
+
+@keyframes atmosFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+
+/* Modern buttons */
+button,
+:is(.btn, .search-button, .unit-toggle) {
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    transform 200ms ease;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--atmos-blue);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  button:hover,
+  :is(.btn, .search-button):hover {
+    box-shadow: 0 0 20px rgba(96, 165, 250, 0.16);
+  }
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* Cleaner form controls */
+input,
+select {
+  accent-color: var(--atmos-blue);
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+select {
+  border-color: var(--atmos-border);
+}
+
+::selection {
+  color: #fff;
+  background: rgba(96, 165, 250, 0.38);
+}
+
+/* Mobile-friendly spacing and effects */
+@media (max-width: 600px) {
+  :is(
+    .card,
+    .weather-card,
+    .forecast-card,
+    .forecast-item,
+    .hourly-card,
+    .weather-details,
+    .current-weather
+  ) {
+    border-radius: 16px;
+  }
+
+  body::before {
+    opacity: 0.17;
+  }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
